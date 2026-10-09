@@ -60,3 +60,11 @@ export CRYPTO_WATCH_CHAT_ID="你的目标会话ID"   # 留空则不推送
 ## 许可
 
 MIT
+
+
+## Support
+
+If this tool is useful, tips are welcome — see [DONATE.md](DONATE.md).
+
+- Solana: `6MeBAjrKbfxZPCP3gshoWgfCv5mRPs9V2JxzyV9np1rv`
+- EVM: `0x4E714E4B3875222E4e7A4D56c57FB12e53d4DF06`
