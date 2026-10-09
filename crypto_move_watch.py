@@ -41,7 +41,9 @@ RETRY_GAP = 30 * 60  # 投递失败后, 同一积压消息的重试间隔(秒)
 MAX_TRIES = 8        # 积压消息最大重试次数, 超出放弃并保持 send_ok=false 让看门狗报警
 DEADLINE = 70.0      # 单轮总预算(秒): meta 8s + 10币×4s = 48s, 留足余量防末位币被系统性截断(cron timeout 90s)
 API = "https://api.hyperliquid.xyz/info"
-ALERT_CHAT_ID = "oc_54795682ec8d929161206125c1d48d64"
+# 推送目标: 默认关闭(开源产品不带私有 chat_id)。需推送时用环境变量显式指定。
+#   export CRYPTO_WATCH_CHAT_ID="oc_xxx"
+ALERT_CHAT_ID = os.environ.get("CRYPTO_WATCH_CHAT_ID", "").strip()
 CFG = os.path.expanduser("~/.openclaw/openclaw.json")
 
 
@@ -297,11 +299,10 @@ def main():
         json.dump(pend, open(tmp2, "w"), ensure_ascii=False, indent=2)
         os.replace(tmp2, PENDING_F)
 
-    # 铁律闸门: 发布前校验(禁模糊词/需三态/需数据时刻), 不合规只记日志拦截并降级
+    # 可选闸门: 若环境里存在 validate_alert 则做发布前合规校验, 否则跳过。
+    # 开源产品不内置该私有校验器 —— 缺失必须静默降级, 不得阻断正常告警(DEF: 打包漏依赖)。
     if pend.get("msg"):
         try:
-            sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                            "..", "scripts"))
             from validate_alert import validate as _va
             _r = _va({"kind": "fact", "data_time": now().strftime("%Y-%m-%dT%H:%M:%S+08:00"),
                       "state": "🟡 观察", "text": pend["msg"]})
@@ -309,8 +310,10 @@ def main():
                 print("[FAIL] 铁律校验未过: %s" % _r["fails"], flush=True)
                 data_ok = False
                 data_detail = "ironrule: " + ";".join(_r["fails"])[:60]
+        except ImportError:
+            pass  # 无私有校验器 → 正常放行
         except Exception as _e:
-            print("[warn] 铁律校验器不可用: %s" % _e, flush=True)
+            print("[warn] 铁律校验器异常(已降级放行): %s" % _e, flush=True)
 
     # 数据面 ok 与投递面 send_ok 分开写, 互不覆盖
     write_health(data_ok, data_detail, send_ok=send_ok)
