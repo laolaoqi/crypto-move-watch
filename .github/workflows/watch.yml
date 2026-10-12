@@ -1,0 +1,41 @@
+name: crypto-move-watch
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run watchdog
+        run: python3 crypto_move_watch.py --dry > /tmp/out.json 2>&1 || true
+      - name: Publish status
+        run: |
+          mkdir -p docs
+          python3 - <<'PY'
+          import json, datetime
+          raw = open('/tmp/out.json').read().strip().splitlines()[-1] if open('/tmp/out.json').read().strip() else '{}'
+          try:
+              d = json.loads(raw)
+          except Exception:
+              d = {'fire': False, 'raw': raw[:200]}
+          doc = {
+              'generated_at': datetime.datetime.utcnow().isoformat() + 'Z',
+              'fire': d.get('fire', False),
+              'state': d.get('state', {}),
+          }
+          open('docs/status.json','w').write(json.dumps(doc, indent=1))
+          PY
+      - name: Commit status
+        run: |
+          git config user.name 'crypto-move-watch-bot'
+          git config user.email 'bot@users.noreply.github.com'
+          git add docs/status.json
+          git commit -m 'chore: update status' || echo nothing
+          git push || echo push-skipped
